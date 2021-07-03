@@ -57,11 +57,9 @@ let list f fmt l =
 
 let str fmt s = Format.fprintf fmt "%s" (comment s)
 
-let ign_loc f fmt with_loc = f fmt with_loc.Odoc_model.Location_.value
+let ign_loc f fmt with_loc = f fmt with_loc.Odoc_parser.Loc.value
 
 let fpf = Format.fprintf
-
-open Odoc_parser.Ast
 
 let odoc_reference = ign_loc str
 
@@ -96,7 +94,8 @@ and odoc_inline_elements fmt elems =
 
 let rec odoc_nestable_block_element c fmt = function
   | `Paragraph elms -> fpf fmt "Paragraph,%a" odoc_inline_elements elms
-  | `Code_block txt ->
+  | `Code_block (_,txt) ->
+      let txt = Odoc_parser.Loc.value txt in
       let txt =
         try
           let ({ast; comments; _} : _ Parse_with_comments.with_comments) =
@@ -162,7 +161,7 @@ let odoc_block_element c fmt = function
       let lbl = match lbl with Some lbl -> lbl | None -> "" in
       fpf fmt "Heading,%s,%a,%a" lvl str lbl odoc_inline_elements content
   | `Tag tag -> fpf fmt "Tag,%a" (odoc_tag c) tag
-  | #nestable_block_element as elm -> odoc_nestable_block_element c fmt elm
+  | #Odoc_parser.Ast.nestable_block_element as elm -> odoc_nestable_block_element c fmt elm
 
 let odoc_docs c fmt elems = list (ign_loc (odoc_block_element c)) fmt elems
 
@@ -170,9 +169,9 @@ let docstring c text =
   if not c.conf.parse_docstrings then comment text
   else
     let location = Lexing.dummy_pos in
-    let parsed = Odoc_parser.parse_comment_raw ~location ~text in
+    let parsed = Odoc_parser.parse_comment ~location ~text in
     Format.asprintf "Docstring(%a)%!" (odoc_docs c)
-      parsed.Odoc_model.Error.value
+      (Odoc_parser.ast parsed)
 
 let sort_attributes : attributes -> attributes =
   List.sort ~compare:Poly.compare
